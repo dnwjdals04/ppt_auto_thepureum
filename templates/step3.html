@@ -1,38 +1,137 @@
-<!-- templates/step3.html -->
 <!doctype html>
-<html>
-<head><meta charset="utf-8"><title>Step 3</title></head>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Step 3</title>
+  <style>
+    :root{--bg:#0b1020;--text:#e7ecff;--muted:#a7b0d6;--line:#253055;--primary:#6ea8ff;--shadow:0 10px 30px rgba(0,0,0,.35);--radius:16px;}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",Arial,"Apple SD Gothic Neo",sans-serif;color:var(--text);background:radial-gradient(1200px 800px at 20% 10%, rgba(110,168,255,.18), transparent 60%),radial-gradient(900px 600px at 80% 30%, rgba(143,104,255,.14), transparent 60%),linear-gradient(180deg,#070a14,#0b1020 55%,#080b16);min-height:100vh;}
+    .wrap{max-width:980px;margin:0 auto;padding:32px 18px 56px;}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;}
+    .brand{display:flex;flex-direction:column;gap:4px;}
+    .brand .title{font-weight:800;letter-spacing:-.02em;font-size:20px;}
+    .brand .sub{color:var(--muted);font-size:13px;}
+    .progress{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;}
+    .pill{border:1px solid var(--line);background:rgba(255,255,255,.04);padding:8px 10px;border-radius:999px;color:var(--muted);font-size:12px;}
+    .pill.active{background:rgba(110,168,255,.14);border-color:rgba(110,168,255,.35);color:var(--text);}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));border:1px solid rgba(37,48,85,.8);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;}
+    .card-hd{padding:18px;border-bottom:1px solid rgba(37,48,85,.65);background:rgba(15,23,48,.65);}
+    .card-hd h1{margin:0;font-size:18px;letter-spacing:-.02em;}
+    .card-hd p{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
+    .card-bd{padding:18px;}
+    .note{
+      border:1px solid rgba(110,168,255,.35);
+      background:rgba(110,168,255,.10);
+      padding:12px 14px;border-radius:14px;
+      color:#dfe9ff;
+      line-height:1.5;
+      margin-bottom:14px;
+    }
+    .note b{display:inline-block;margin-right:6px;}
+    .song{
+      margin-bottom:14px;
+      padding:12px;
+      border:1px solid rgba(37,48,85,.7);
+      border-radius:14px;
+      background:rgba(15,23,48,.55);
+    }
+    .song-title{
+      display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      margin-bottom:10px;
+    }
+    .song-title b{font-size:14px;}
+    .meta{color:var(--muted);font-size:12px;}
+    textarea{
+      width:100%;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(37,48,85,.8);
+      color:var(--text);
+      border-radius:12px;
+      padding:12px;
+      outline:none;
+      font-size:13px;
+      line-height:1.55;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      resize:vertical;
+      min-height:220px;
+    }
+    textarea:focus{border-color:rgba(110,168,255,.65);box-shadow:0 0 0 4px rgba(110,168,255,.12);}
+    .actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:16px;}
+    .btn{border:1px solid rgba(37,48,85,.85);background:rgba(255,255,255,.05);color:var(--text);padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:800;letter-spacing:-.01em;}
+    .btn.primary{border-color:rgba(110,168,255,.55);background:linear-gradient(180deg, rgba(110,168,255,.22), rgba(75,125,255,.16));}
+    .section-h{margin:16px 0 10px;font-size:14px;color:var(--muted);font-weight:800;letter-spacing:-.01em;}
+  </style>
+</head>
+
 <body>
-  <h2>Step 3) 가사 확인/수정</h2>
-  <h3> 가사는 2줄 단위로 ppt에 작성됩니다</h3>
-  <h3> 빈 줄은 슬라이드 구분용으로 사용됩니다</h3>
-
-  <form method="post" action="/api/plan/{{plan_id}}/songs/lyrics">
-    <h3>찬양</h3>
-    {% for s in plan.songs.praise %}
-      <div style="margin-bottom:14px; padding:10px; border:1px solid #ddd;">
-        <b>찬양 {{loop.index}}: {{s.title}}{% if s.artist %} - {{s.artist}}{% endif %}</b><br/>
-        <textarea name="lyrics_praise_{{loop.index0}}" rows="10" style="width:100%">{{s.lyrics}}</textarea>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <div class="title">PPT Auto</div>
+        <div class="sub">예배 PPT 자동 생성 · Step 3/4</div>
       </div>
-    {% endfor %}
-
-    {% if plan.songs.offering %}
-      <h3>헌금송</h3>
-      <div style="margin-bottom:14px; padding:10px; border:1px solid #ddd;">
-        <b>{{plan.songs.offering.title}}{% if plan.songs.offering.artist %} - {{plan.songs.offering.artist}}{% endif %}</b><br/>
-        <textarea name="lyrics_offering" rows="10" style="width:100%">{{plan.songs.offering.lyrics}}</textarea>
+      <div class="progress">
+        <div class="pill">1 기본</div>
+        <div class="pill">2 곡</div>
+        <div class="pill active">3 가사</div>
+        <div class="pill">4 생성</div>
       </div>
-    {% endif %}
+    </div>
 
-    {% if plan.songs.closing %}
-      <h3>설후찬</h3>
-      <div style="margin-bottom:14px; padding:10px; border:1px solid #ddd;">
-        <b>{{plan.songs.closing.title}}{% if plan.songs.closing.artist %} - {{plan.songs.closing.artist}}{% endif %}</b><br/>
-        <textarea name="lyrics_closing" rows="10" style="width:100%">{{plan.songs.closing.lyrics}}</textarea>
+    <div class="card">
+      <div class="card-hd">
+        <h1>Step 3) 가사 확인/수정</h1>
+        <p>가사는 PPT에 <b>2줄 단위</b>로 들어가며, <b>빈 줄</b>은 슬라이드 구분용으로 사용됩니다.</p>
       </div>
-    {% endif %}
 
-    <button type="submit">다음</button>
-  </form>
+      <div class="card-bd">
+        <div class="note">
+          <b>팁</b> “2줄 + 2줄 …” 형태로 정리하면 슬라이드가 예쁘게 나옵니다.  
+          중간에 <b>빈 줄</b>을 넣으면 다음 슬라이드로 넘어가요.
+        </div>
+
+        <form method="post" action="/api/plan/{{plan_id}}/songs/lyrics">
+          <div class="section-h">찬양</div>
+          {% for s in plan.songs.praise %}
+            <div class="song">
+              <div class="song-title">
+                <b>찬양 {{loop.index}}: {{s.title}}{% if s.artist %} - {{s.artist}}{% endif %}</b>
+                <div class="meta">필요하면 여기서 바로 수정하세요</div>
+              </div>
+              <textarea name="lyrics_praise_{{loop.index0}}" rows="10">{{s.lyrics}}</textarea>
+            </div>
+          {% endfor %}
+
+          {% if plan.songs.offering %}
+            <div class="section-h">헌금송</div>
+            <div class="song">
+              <div class="song-title">
+                <b>{{plan.songs.offering.title}}{% if plan.songs.offering.artist %} - {{plan.songs.offering.artist}}{% endif %}</b>
+                <div class="meta">선택 항목</div>
+              </div>
+              <textarea name="lyrics_offering" rows="10">{{plan.songs.offering.lyrics}}</textarea>
+            </div>
+          {% endif %}
+
+          {% if plan.songs.closing %}
+            <div class="section-h">설후찬</div>
+            <div class="song">
+              <div class="song-title">
+                <b>{{plan.songs.closing.title}}{% if plan.songs.closing.artist %} - {{plan.songs.closing.artist}}{% endif %}</b>
+                <div class="meta">선택 항목</div>
+              </div>
+              <textarea name="lyrics_closing" rows="10">{{plan.songs.closing.lyrics}}</textarea>
+            </div>
+          {% endif %}
+
+          <div class="actions">
+            <button class="btn primary" type="submit">다음 · PPT 생성</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

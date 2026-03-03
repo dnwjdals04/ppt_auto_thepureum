@@ -33,6 +33,12 @@ L1_LordsPrayer_1 = 7
 L1_LordsPrayer_2 = 8
 L1_PRAYER        = 9   # (ph 10)
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def load_lyrics_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8").replace("\r\n", "\n").strip()
+
 
 def clear_all_slides(p: Presentation):
     sldIdLst = p.slides._sldIdLst
@@ -184,6 +190,17 @@ def build_ppt(plan: dict, template_path: Path, bible_dir: Path, out_dir: Path) -
     # [5] 설후찬
     if plan["songs"].get("closing"):
         add_song_section(p, "Closing", plan["songs"]["closing"])
+
+
+    # [6] 함께지어져가네
+    lyrics_path = BASE_DIR / "lyrics" / "함께지어져가네.txt"
+    fixed_song = {
+        "title": "함께 지어져가네",
+        "artist": "",
+        "lyrics": load_lyrics_text(lyrics_path) if lyrics_path.exists() else "",
+    }
+    add_song_section(p, "Worship", fixed_song)
+    
 
     # 주기도문
     add_slide(p, M1, L1_LordsPrayer)
