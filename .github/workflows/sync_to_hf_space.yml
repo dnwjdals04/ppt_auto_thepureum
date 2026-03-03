@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Push to Hugging Face Space
+      - name: Push to Hugging Face Space (Bearer token)
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
@@ -19,11 +19,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # 토큰이 실제로 들어왔는지(빈 값이면 바로 실패)
           if [ -z "$HF_TOKEN" ]; then
-            echo "HF_TOKEN is empty. Check GitHub Actions secret HF_TOKEN."
+            echo "HF_TOKEN is empty. Check GitHub Secrets -> Actions -> HF_TOKEN."
             exit 1
           fi
 
-          # HF Space로 토큰 포함 URL로 push
-          git push --force "https://hihi12121:${HF_TOKEN}@huggingface.co/spaces/hihi12121/ppt_auto" main
+          # Hugging Face Space repo URL (no creds in URL)
+          HF_URL="https://huggingface.co/spaces/hihi12121/ppt_auto"
+
+          # Push using Authorization: Bearer header
+          git -c http.extraHeader="Authorization: Bearer ${HF_TOKEN}" push --force "${HF_URL}" main
