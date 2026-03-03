@@ -11,6 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+
       - name: Push to Hugging Face Space (Bearer token)
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
