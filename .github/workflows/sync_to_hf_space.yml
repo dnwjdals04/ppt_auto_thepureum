@@ -10,8 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-
       - name: Push to Hugging Face Space (Bearer token)
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -25,8 +23,9 @@ jobs:
             exit 1
           fi
 
-          # Hugging Face Space repo URL (no creds in URL)
-          HF_URL="https://huggingface.co/spaces/hihi12121/ppt_auto"
+          # ✅ HF Space git remote 추가 (중요: 끝에 슬래시 X)
+          git remote remove hf 2>/dev/null || true
+          git remote add hf https://huggingface.co/spaces/hihi12121/ppt_auto
 
-          # Push using Authorization: Bearer header
-          git -c http.extraHeader="Authorization: Bearer ${HF_TOKEN}" push --force "${HF_URL}" main
+          # ✅ 인증 헤더를 강제로 붙여서 push
+          git -c http.https://huggingface.co/.extraHeader="Authorization: Bearer ${HF_TOKEN}" push --force hf HEAD:main
