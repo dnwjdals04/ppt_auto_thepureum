@@ -116,7 +116,7 @@
           </div>
 
           <div class="actions">
-            <button id="submitBtn" class="btn primary" type="submit">다음 · 가사 크롤링/수정</button>
+            <button id="submitBtn" class="btn primary" type="submit">다음 · 가사 찾기</button>
           </div>
         </form>
       </div>
@@ -129,7 +129,7 @@
 
     form.addEventListener('submit', function() {
       // 1. 시각적으로 로딩 중임을 알림
-      submitBtn.innerHTML = '<span class="loading-text">⏳ 멜론에서 크롤링 중... (최대 10~20초 소요)</span>';
+      submitBtn.innerHTML = '<span class="loading-text">⏳ 가사 찾는 중... (멜론 검색 시 최대 10~20초)</span>';
       submitBtn.style.pointerEvents = 'none'; // 마우스 클릭 차단
       
       // 2. 폼이 실제로 제출되도록 아주 짧은 시간(10ms) 대기 후 버튼 비활성화 (disabled)

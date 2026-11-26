@@ -164,26 +164,9 @@ def form_slides(lyrics: str, form: str) -> tuple[list[str], list[str]]:
     return slides, warnings
 
 
-def _title_key(name: str) -> str:
+def title_key(name: str) -> str:
+    """'나 주님의 기쁨 되기_아티스트' → '나주님의기쁨되기' (파일명·제목 비교용)"""
     return re.sub(r"\s+", "", name.split("_")[0]).lower()
-
-
-def cached_lyrics(lyrics_dir, title: str) -> str | None:
-    """
-    lyrics/ 에서 '제목.txt' 또는 '제목_아티스트.txt' 찾기 (띄어쓰기·대소문자 무시)
-    메들리 'A+B' 는 통째 파일이 없으면 곡별 파일을 빈 줄로 이어붙임. 하나라도 없으면 None
-    """
-    if not title.strip():
-        return None
-    for fp in sorted(lyrics_dir.glob("*.txt")):
-        if _title_key(fp.stem) == _title_key(title):
-            return fp.read_text(encoding="utf-8").replace("\r\n", "\n").strip()
-    parts = [t.strip() for t in title.split("+") if t.strip()]
-    if len(parts) > 1:
-        texts = [cached_lyrics(lyrics_dir, p) for p in parts]
-        if all(t is not None for t in texts):
-            return "\n\n".join(texts)
-    return None
 
 
 # =========================

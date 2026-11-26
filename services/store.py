@@ -9,6 +9,9 @@ class PlanStore:
         self.base.mkdir(parents=True, exist_ok=True)
 
     def _fp(self, plan_id: str) -> Path:
+        # plan_id 는 URL 에서 오므로 숫자만 허용 (../ 같은 경로 조작 방지)
+        if not plan_id.isdigit():
+            plan_id = "invalid"
         return self.base / f"{plan_id}.json"
 
     def create(self, plan: dict) -> str:
@@ -22,6 +25,9 @@ class PlanStore:
         if not fp.exists():
             return None
         return json.loads(fp.read_text(encoding="utf-8"))
+
+    def delete(self, plan_id: str) -> None:
+        self._fp(plan_id).unlink(missing_ok=True)
 
     def save(self, plan_id: str, plan: dict) -> None:
         fp = self._fp(plan_id)

@@ -3,6 +3,9 @@ import datetime
 from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
 
+from routers.api_plan import MELON, lyrics_options, plan_songs
+from services import lyrics_store
+
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
@@ -44,6 +47,26 @@ def step2(request: Request, plan_id: str):
     )
 
 
+@router.get("/step/select")
+def step_select(request: Request, plan_id: str):
+    plan = _store(request).get(plan_id)
+    if not plan:
+        return templates.TemplateResponse(
+            request=request,
+            name="step_select.html",
+            context={"plan_id": plan_id, "error": "plan not found", "songs": []},
+        )
+    songs = [
+        {"key": key, "title": s["title"], "artist": s.get("artist", ""), "options": lyrics_options(s)}
+        for key, s in plan_songs(plan)
+    ]
+    return templates.TemplateResponse(
+        request=request,
+        name="step_select.html",
+        context={"plan_id": plan_id, "songs": songs, "melon": MELON},
+    )
+
+
 @router.get("/step/3")
 def step3(request: Request, plan_id: str):
     store = _store(request)
@@ -75,5 +98,10 @@ def step4(request: Request, plan_id: str):
             "plan_id": plan_id,
             "has_plan": plan is not None,
             "date_str": (plan or {}).get("date", "").replace("-", ""),
+            "songs": [
+                {"key": key, "title": s["title"], "save_name": s.get("save_name") or lyrics_store.make_name(s["title"], s.get("artist", ""))}
+                for key, s in (plan_songs(plan) if plan else [])
+            ],
+            "persistent": lyrics_store.persistent(),
         },
     )

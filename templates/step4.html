@@ -66,6 +66,9 @@
       background:rgba(255,107,107,.10);
       color:#ffd7d7;
     }
+    .savecheck{display:flex;gap:10px;align-items:center;padding:8px 2px;font-size:14px;}
+    .savecheck input{width:auto;}
+    .muted{color:var(--muted);font-size:12px;}
   </style>
 </head>
 
@@ -107,6 +110,34 @@
         <div class="toast" id="toast"></div>
       </div>
     </div>
+
+    {% if songs %}
+    <div class="card" id="saveCard" style="margin-top:16px;">
+      <div class="card-hd">
+        <h1>가사 저장</h1>
+        <p>PPT를 만든 뒤, 이번에 쓴(수정한) 가사를 저장소에 남길지 고르세요. 저장하면 다음에 '가사 선택'에서 바로 쓸 수 있어요.
+          같은 이름의 가사가 있으면 덮어씁니다.</p>
+      </div>
+      <div class="card-bd">
+        {% if not persistent %}
+          <div class="toast show error">저장소(LYRICS_REPO)가 설정되지 않아, 저장해도 서버가 재시작되면 사라져요.</div>
+        {% endif %}
+        <form id="saveForm">
+          {% for s in songs %}
+            <label class="savecheck">
+              <input type="checkbox" name="save_{{ s.key }}" value="1" checked />
+              <span><b>{{ s.title }}</b> <span class="muted">→ {{ s.save_name }}</span></span>
+            </label>
+          {% endfor %}
+        </form>
+        <div class="cta">
+          <button class="btn primary" id="btnSave" onclick="saveLyrics()"><span>💾</span> 선택한 가사 저장</button>
+          <button class="btn" id="btnDiscard" onclick="discardPlan()"><span>🗑️</span> 저장하지 않고 끝내기</button>
+        </div>
+        <div class="toast" id="saveToast"></div>
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   <script>
@@ -129,6 +160,48 @@
       t.classList.remove("show");
       t.classList.remove("error");
       t.textContent = "";
+    }
+
+    function setSaveToast(msg, isError=false){
+      const t = document.getElementById("saveToast");
+      t.textContent = msg;
+      t.classList.toggle("error", !!isError);
+      t.classList.add("show");
+    }
+
+    function lockSave(){
+      document.getElementById("btnSave").disabled = true;
+      document.getElementById("btnDiscard").disabled = true;
+    }
+
+    async function saveLyrics(){
+      const btn = document.getElementById("btnSave");
+      btn.disabled = true;
+      try{
+        const res = await fetch(`/api/plan/${encodeURIComponent("{{plan_id}}")}/lyrics/save`, {
+          method: "POST", body: new FormData(document.getElementById("saveForm")),
+        });
+        const data = await res.json();
+        if(!res.ok){ setSaveToast(data.error || "저장 실패", true); btn.disabled = false; return; }
+        if(data.failed.length){
+          setSaveToast("일부 저장 실패: " + data.failed.join(" / "), true);
+          btn.disabled = false;
+          return;
+        }
+        lockSave();
+        setSaveToast(data.saved.length ? `저장 완료 ✅ ${data.saved.join(", ")}` : "선택한 가사가 없어 저장하지 않았어요.");
+      } catch(e){
+        setSaveToast("네트워크 오류: " + (e?.message || e), true);
+        btn.disabled = false;
+      }
+    }
+
+    async function discardPlan(){
+      if(!confirm("가사를 저장하지 않고 이번 작업 정보를 삭제할까요? (다운로드한 PPT는 그대로 있어요)")) return;
+      lockSave();
+      document.getElementById("btnGen").disabled = true;
+      await fetch(`/api/plan/${encodeURIComponent("{{plan_id}}")}/discard`, {method:"POST"});
+      setSaveToast("저장하지 않고 정리했어요. 새로 만들려면 처음 화면으로 가세요.");
     }
 
     async function makePpt(){

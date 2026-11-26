@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Step 3 · 가사 선택</title>
+  <style>
+    :root{--bg:#0b1020;--text:#e7ecff;--muted:#a7b0d6;--line:#253055;--primary:#6ea8ff;--shadow:0 10px 30px rgba(0,0,0,.35);--radius:16px;}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",Arial,"Apple SD Gothic Neo",sans-serif;color:var(--text);background:radial-gradient(1200px 800px at 20% 10%, rgba(110,168,255,.18), transparent 60%),radial-gradient(900px 600px at 80% 30%, rgba(143,104,255,.14), transparent 60%),linear-gradient(180deg,#070a14,#0b1020 55%,#080b16);min-height:100vh;}
+    .wrap{max-width:980px;margin:0 auto;padding:32px 18px 56px;}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;}
+    .brand{display:flex;flex-direction:column;gap:4px;}
+    .brand .title{font-weight:800;letter-spacing:-.02em;font-size:20px;}
+    .brand .sub{color:var(--muted);font-size:13px;}
+    .progress{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;}
+    .pill{border:1px solid var(--line);background:rgba(255,255,255,.04);padding:8px 10px;border-radius:999px;color:var(--muted);font-size:12px;}
+    .pill.active{background:rgba(110,168,255,.14);border-color:rgba(110,168,255,.35);color:var(--text);}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));border:1px solid rgba(37,48,85,.8);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;}
+    .card-hd{padding:18px;border-bottom:1px solid rgba(37,48,85,.65);background:rgba(15,23,48,.65);}
+    .card-hd h1{margin:0;font-size:18px;letter-spacing:-.02em;}
+    .card-hd p{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
+    .card-bd{padding:18px;}
+    .alert{border:1px solid rgba(255,107,107,.5);background:rgba(255,107,107,.10);padding:10px 12px;border-radius:14px;color:#ffd7d7;margin-bottom:14px;}
+    .song{margin-bottom:14px;padding:12px;border:1px solid rgba(37,48,85,.7);border-radius:14px;background:rgba(15,23,48,.55);}
+    .song > b{display:block;font-size:14px;margin-bottom:10px;}
+    .opt{display:block;border:1px solid rgba(37,48,85,.8);border-radius:12px;padding:10px 12px;margin-top:8px;cursor:pointer;}
+    .opt:has(input:checked){border-color:rgba(110,168,255,.65);background:rgba(110,168,255,.10);}
+    .opt input{margin-right:8px;}
+    .opt .name{font-weight:700;font-size:13px;}
+    .opt .tag{color:var(--muted);font-size:12px;margin-left:6px;}
+    pre{margin:8px 0 0;max-height:150px;overflow:auto;white-space:pre-wrap;color:var(--muted);font-size:12px;line-height:1.5;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;}
+    .actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:16px;}
+    .btn{border:1px solid rgba(37,48,85,.85);background:rgba(255,255,255,.05);color:var(--text);padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:800;letter-spacing:-.01em;}
+    .btn.primary{border-color:rgba(110,168,255,.55);background:linear-gradient(180deg, rgba(110,168,255,.22), rgba(75,125,255,.16));}
+    .btn:disabled{opacity:.6;cursor:not-allowed;}
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <div class="title">PPT Auto</div>
+        <div class="sub">예배 PPT 자동 생성 · Step 3/4</div>
+      </div>
+      <div class="progress">
+        <div class="pill">1 기본</div>
+        <div class="pill">2 곡</div>
+        <div class="pill active">3 가사</div>
+        <div class="pill">4 생성</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <h1>Step 3-1) 가사 선택</h1>
+        <p>저장소에 있는 가사를 먼저 찾아봤어요. 곡마다 사용할 가사를 고르세요. 다음 화면에서 수정할 수 있어요.</p>
+      </div>
+
+      <div class="card-bd">
+        {% if error %}<div class="alert">{{error}}</div>{% endif %}
+
+        <form id="selectForm" method="post" action="/api/plan/{{plan_id}}/songs/select">
+          {% for s in songs %}
+            <div class="song">
+              <b>{{ s.title }}{% if s.artist %} - {{ s.artist }}{% endif %}</b>
+              {% for o in s.options %}
+                <label class="opt">
+                  <input type="radio" name="choice_{{ s.key }}" value="{{ o.id }}" {% if loop.first %}checked{% endif %} />
+                  <span class="name">{{ o.label }}</span><span class="tag">저장된 가사</span>
+                  <pre>{{ o.text }}</pre>
+                </label>
+              {% endfor %}
+              <label class="opt">
+                <input type="radio" name="choice_{{ s.key }}" value="{{ melon }}" {% if not s.options %}checked{% endif %} />
+                <span class="name">멜론에서 새로 가져오기</span>
+                {% if not s.options %}<span class="tag">저장된 가사 없음</span>{% endif %}
+              </label>
+            </div>
+          {% endfor %}
+
+          <div class="actions">
+            <button id="submitBtn" class="btn primary" type="submit">다음 · 가사 확인/수정</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('selectForm').addEventListener('submit', function () {
+      const btn = document.getElementById('submitBtn');
+      if (document.querySelector('input[value="{{ melon }}"]:checked')) {
+        btn.textContent = '⏳ 멜론에서 가사 가져오는 중... (최대 10~20초)';
+      }
+      setTimeout(() => { btn.disabled = true; }, 10);
+    });
+  </script>
+</body>
+</html>
