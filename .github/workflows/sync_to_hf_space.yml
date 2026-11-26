@@ -29,7 +29,7 @@ jobs:
               raise SystemExit("HF_TOKEN is empty. Check GitHub Secrets -> Actions -> HF_TOKEN.")
           HfApi().upload_folder(
               folder_path=".",
-              repo_id="woojeongmin/thepureum",
+              repo_id="hihwapyung/ppt_auto",
               repo_type="space",
               ignore_patterns=[".git/*", ".github/*", "docker-compose.yml", "Caddyfile", "out/*", "**/__pycache__/*"],
               commit_message=f"Sync from GitHub {os.environ['GITHUB_SHA'][:7]}",
