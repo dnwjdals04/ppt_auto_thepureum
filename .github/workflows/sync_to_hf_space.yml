@@ -1,0 +1,37 @@
+name: Sync to Hugging Face Space
+
+# main 에 push 하면 Hugging Face Space 로 자동 업로드 (Actions 탭에서 수동 실행도 가능)
+# 준비: GitHub 저장소 Settings → Secrets and variables → Actions → New repository secret
+#       이름 HF_TOKEN, 값 = Hugging Face 의 Write 권한 토큰
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: pip install -U huggingface_hub
+
+      # git push 대신 업로드 API 사용: .pptx 같은 바이너리도 HF 가 알아서 처리 (LFS 설정 불필요)
+      # shortcut: GitHub 에서 지운 파일은 Space 에서 자동으로 지워지지 않음, 지울 일이 생기면 Space Files 탭에서 직접 삭제
+      - name: Upload to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - <<'EOF'
+          import os
+          from huggingface_hub import HfApi
+          if not os.environ.get("HF_TOKEN"):
+              raise SystemExit("HF_TOKEN is empty. Check GitHub Secrets -> Actions -> HF_TOKEN.")
+          HfApi().upload_folder(
+              folder_path=".",
+              repo_id="woojeongmin/thepureum",
+              repo_type="space",
+              ignore_patterns=[".git/*", ".github/*", "docker-compose.yml", "Caddyfile", "out/*", "**/__pycache__/*"],
+              commit_message=f"Sync from GitHub {os.environ['GITHUB_SHA'][:7]}",
+          )
+          EOF

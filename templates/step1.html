@@ -177,6 +177,22 @@
         <form method="post" action="/api/plan/init">
           <div class="grid">
             <div class="field">
+              <div class="label"><span>예배 날짜</span></div>
+              <input type="date" name="service_date" value="{{ default_date }}" required />
+              <div class="help">콘티를 붙여넣으면 이 날짜의 곡을 가져옵니다.</div>
+            </div>
+
+            <div class="field">
+              <div class="label"><span>콘티 붙여넣기 (선택)</span></div>
+              <textarea
+                name="conti_raw"
+                placeholder="11/1&#10;1. 성도여 다함께&#10;Intro(8)-A1-A1-B1-(4)-...&#10;2. ..."
+                rows="6"
+              ></textarea>
+              <div class="help">받은 콘티를 통째로 붙여넣으세요. 곡 제목·송폼이 자동으로 채워지고, 아래 '찬양 곡 수'는 무시됩니다.</div>
+            </div>
+
+            <div class="field">
               <div class="label">
                 <span>찬양 곡 수</span>
                 <span style="color:var(--muted);font-weight:600;">1~20</span>
@@ -230,10 +246,6 @@
                   <div class="help">설후찬 입력칸 및 슬라이드를 포함합니다.</div>
                 </div>
               </label>
-
-              <!-- 체크박스 해제 시 0이 보내지도록 유지(기존 로직 유지) -->
-              <input type="hidden" name="include_offering" value="0" />
-              <input type="hidden" name="include_closing" value="0" />
             </div>
           </div>
 

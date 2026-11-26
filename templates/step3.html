@@ -57,6 +57,7 @@
       resize:vertical;
       min-height:220px;
     }
+    input{width:100%;margin-bottom:8px;background:rgba(255,255,255,.05);border:1px solid rgba(37,48,85,.8);color:var(--text);border-radius:12px;padding:10px 12px;outline:none;font-size:13px;}
     textarea:focus{border-color:rgba(110,168,255,.65);box-shadow:0 0 0 4px rgba(110,168,255,.12);}
     .actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:16px;}
     .btn{border:1px solid rgba(37,48,85,.85);background:rgba(255,255,255,.05);color:var(--text);padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:800;letter-spacing:-.01em;}
@@ -89,7 +90,9 @@
       <div class="card-bd">
         <div class="note">
           <b>팁</b> “2줄 + 2줄 …” 형태로 정리하면 슬라이드가 예쁘게 나옵니다.  
-          중간에 <b>빈 줄</b>을 넣으면 다음 슬라이드로 넘어가요.
+          중간에 <b>빈 줄</b>을 넣으면 다음 슬라이드로 넘어가요.<br />
+          <b>송폼</b> 가사에 <code>[A1]</code> <code>[B]</code> 처럼 파트 표시를 넣으면 송폼 순서대로 슬라이드가 만들어져요.
+          <code>(4)</code> 같은 간주는 빈 슬라이드가 됩니다. 파트 표시가 없으면 가사 순서대로 들어가요.
         </div>
 
         <form method="post" action="/api/plan/{{plan_id}}/songs/lyrics">
@@ -100,6 +103,7 @@
                 <b>찬양 {{loop.index}}: {{s.title}}{% if s.artist %} - {{s.artist}}{% endif %}</b>
                 <div class="meta">필요하면 여기서 바로 수정하세요</div>
               </div>
+              <input name="form_praise_{{loop.index0}}" value="{{ s.form or '' }}" placeholder="송폼(선택) 예: Intro(8)-A1-B-(4)-A2-B" />
               <textarea name="lyrics_praise_{{loop.index0}}" rows="10">{{s.lyrics}}</textarea>
             </div>
           {% endfor %}

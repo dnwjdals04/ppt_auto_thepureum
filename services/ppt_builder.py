@@ -2,6 +2,7 @@ from pptx import Presentation
 from pathlib import Path
 import datetime
 
+from services import conti
 from services.bible import parse_range, scroll_bible
 
 # 템플릿 기준 master/layout 인덱스
@@ -70,6 +71,16 @@ def add_song_section(p: Presentation, label_en: str, song: dict):
     set_ph(s_title, 10, title)
     set_ph(s_title, 11, label_en)
 
+    # 송폼 + 파트 표시([A1] 등)가 있으면 송폼 순서대로, 아니면 아래 기존 규칙
+    lyrics = song.get("lyrics", "") or ""
+    if song.get("form") and conti.parse_sections(lyrics):
+        slides, _warnings = conti.form_slides(lyrics, song["form"])
+        for text in slides:
+            s_lyr = add_slide(p, M1, L1_WORSHIP_LYR)
+            if text:
+                set_ph(s_lyr, 10, text)
+        return
+
     # ---- 핵심: 빈 줄 처리 규칙 반영 ----
     buf = []  # 현재 슬라이드에 넣을 가사 줄(최대 2줄)
 
@@ -126,7 +137,8 @@ def build_ppt(plan: dict, template_path: Path, bible_dir: Path, out_dir: Path) -
     p = Presentation(str(template_path))
     clear_all_slides(p)
 
-    date = datetime.datetime.now().date()
+    add_slide(p, M0, L0_GREETINGS)
+    date = datetime.date.fromisoformat(plan["date"]) if plan.get("date") else datetime.date.today()
     sermon_title = plan.get("sermon_title", "")
     sermon_phrases = plan.get("sermon_phrases", [])
 
@@ -134,15 +146,16 @@ def build_ppt(plan: dict, template_path: Path, bible_dir: Path, out_dir: Path) -
         sermon_phrases = [sermon_phrases]
     
     # [1] 프리뷰 + 사도신경
-    add_slide(p, M0, L0_GREETINGS)
+    # add_slide(p, M0, L0_GREETINGS)
 
-    s_prev = add_slide(p, M0, L0_PREVIEW)
-    set_ph(s_prev, 10, date.strftime("%Y.%m.%d 주일 예배"))
-    set_ph(s_prev, 11, sermon_title)
-    set_ph(s_prev, 12, sermon_phrases[0] if sermon_phrases else "")
+    # s_prev = add_slide(p, M0, L0_PREVIEW)
+    # set_ph(s_prev, 10, date.strftime("%Y.%m.%d 주일 예배"))
+    # set_ph(s_prev, 11, sermon_title)
+    # set_ph(s_prev, 12, sermon_phrases[0] if sermon_phrases else "")
 
-    add_slide(p, M0, L0_CONTACTUS)
-    add_slide(p, M0, L0_WHITEPRAYER)
+    # add_slide(p, M0, L0_CONTACTUS)
+    # add_slide(p, M0, L0_WHITEPRAYER)
+
     add_slide(p, M0, L0_APOSTLES)
     add_slide(p, M0, L0_APOSTLES_1)
     add_slide(p, M0, L0_APOSTLES_2)
@@ -160,12 +173,26 @@ def build_ppt(plan: dict, template_path: Path, bible_dir: Path, out_dir: Path) -
     set_ph(s_pray, 10, plan.get("prayer", "기도 | "))
 
     # [3] 헌금
+    # add_slide(p, M1, L1_OFFERING)
+    # if plan["songs"].get("offering"):
+    #     add_song_section(p, "Offering", plan["songs"]["offering"])
+
+    # [3] 헌금
     add_slide(p, M1, L1_OFFERING)
-    if plan["songs"].get("offering"):
-        add_song_section(p, "Offering", plan["songs"]["offering"])
+    # 🌟 Step 1에서 '헌금송 포함'을 체크한 경우에만 동작
+    if plan.get("flags", {}).get("include_offering", True):
+        # 고정된 헌금송 파일 경로
+        offering_lyrics_path = BASE_DIR / "lyrics" / "나 주님의 기쁨되기 원하네.txt"
+
+        fixed_offering_song = {
+            "title": "나 주님의 기쁨되기 원하네",
+            "artist": "",
+            "lyrics": load_lyrics_text(offering_lyrics_path) if offering_lyrics_path.exists() else "",
+        }
+        add_song_section(p, "Offering", fixed_offering_song)
 
     add_slide(p, M0, L0_OFFERINGPRAY)
-    add_slide(p, M0, L0_WHITEANNOUNCE)
+    # add_slide(p, M0, L0_WHITEANNOUNCE)
 
     # [4] 설교 + 본문
     if sermon_phrases:

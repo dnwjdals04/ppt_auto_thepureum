@@ -2,11 +2,20 @@
 
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import RedirectResponse
+from fastapi.concurrency import run_in_threadpool  # 🌟 추가: 서버 멈춤 방지용
+import asyncio  # 🌟 추가: 연타 방지용 Lock
 
+import datetime
+from pathlib import Path
+
+from services import conti
 from services.melon import fetch_lyrics_batch_melon
+
+LYRICS_DIR = Path(__file__).resolve().parent.parent / "lyrics"
 
 router = APIRouter()
 
+crawl_lock = asyncio.Lock()
 
 def _store(request: Request):
     return request.app.state.store
@@ -19,16 +28,38 @@ async def plan_init(
     prayer: str = Form("기도 | "),
     sermon_title: str = Form(""),
     sermon_phrases_raw: str = Form(""),
-    include_offering: int = Form(1),
-    include_closing: int = Form(1),
+    include_offering: int = Form(0),
+    include_closing: int = Form(0),
+    service_date: str = Form(""),
+    conti_raw: str = Form(""),
 ):
     if not (1 <= praise_count <= 20):
         raise HTTPException(status_code=400, detail="praise_count must be 1..20")
+    try:
+        date = datetime.date.fromisoformat(service_date) if service_date else datetime.date.today()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="예배 날짜 형식이 올바르지 않습니다") from None
+
+    # 콘티가 있으면 선택한 날짜(월/일)의 곡 + 송폼을 사용
+    conti_songs = []
+    if conti_raw.strip():
+        weeks = conti.parse_conti(conti_raw, today=date)
+        week = next((w for w in weeks if (w["date"].month, w["date"].day) == (date.month, date.day)), None)
+        if not week or not week["songs"]:
+            found = ", ".join(f"{w['date'].month}/{w['date'].day}" for w in weeks if w["songs"]) or "없음"
+            raise HTTPException(
+                status_code=400,
+                detail=f"콘티에서 {date.month}/{date.day} 곡을 찾지 못했어요 (콘티에 있는 날짜: {found})",
+            )
+        conti_songs = week["songs"][:20]
+        praise_count = len(conti_songs)
 
     sermon_phrases = [x.strip() for x in sermon_phrases_raw.splitlines() if x.strip()]
 
     plan = {
         "praise_count": int(praise_count),
+        "date": date.isoformat(),
+        "conti_songs": conti_songs,
         "prayer": prayer.strip(),
         "sermon_title": sermon_title.strip(),
         "sermon_phrases": sermon_phrases,
@@ -50,13 +81,6 @@ async def plan_init(
 
 @router.post("/api/plan/{plan_id}/songs/basic")
 async def save_songs_basic(request: Request, plan_id: str):
-    """
-    Step2 제출:
-    - 제목/가수 저장
-    - 그 즉시 멜론에서 가사 크롤링
-    - plan에 lyrics 채워서 저장
-    - Step3로 이동(수정만)
-    """
     store = _store(request)
     plan = store.get(plan_id)
     if not plan:
@@ -70,9 +94,10 @@ async def save_songs_basic(request: Request, plan_id: str):
     for i in range(praise_count):
         title = str(form.get(f"praise_title_{i}", "")).strip()
         artist = str(form.get(f"praise_artist_{i}", "")).strip()
-        praise.append({"title": title, "artist": artist, "lyrics": ""})
+        song_form = str(form.get(f"praise_form_{i}", "")).strip()
+        praise.append({"title": title, "artist": artist, "form": song_form, "lyrics": ""})
 
-    # ✅ 2) offering/closing은 flags 안 믿고 "입력값 있으면" 무조건 저장
+    # 2) offering/closing은 flags 안 믿고 "입력값 있으면" 무조건 저장
     offering = None
     ot = str(form.get("offering_title", "")).strip()
     oa = str(form.get("offering_artist", "")).strip()
@@ -96,11 +121,27 @@ async def save_songs_basic(request: Request, plan_id: str):
     if closing:
         batch.append(closing)
 
-    results = fetch_lyrics_batch_melon(batch, headless=True)
+    # lyrics/ 에 저장된 가사는 그대로 쓰고, 없는 곡만 크롤링 (메들리 'A+B'는 곡별로 따로 검색)
+    to_crawl = []  # (곡, [크롤링할 조각])
+    for s in batch:
+        cached = conti.cached_lyrics(LYRICS_DIR, s["title"])
+        if cached is not None:
+            s["lyrics"] = cached
+            continue
+        parts = [t.strip() for t in s["title"].split("+") if t.strip()] or [s["title"]]
+        artist = s["artist"] if len(parts) == 1 else ""
+        to_crawl.append((s, [{"title": t, "artist": artist} for t in parts]))
 
-    # 4) 결과 반영 (song_dict를 그대로 넘겼으므로 in-place로 채움)
-    for song_obj, lyrics in results:
-        song_obj["lyrics"] = (lyrics or "").replace("\r\n", "\n")
+    flat = [p for _, ps in to_crawl for p in ps]
+    if flat:
+        # 🌟🌟 Lock + 스레드풀: 버튼을 10번 연타해도 서버가 멈추지 않고 1개씩 순서대로 크롤링
+        async with crawl_lock:
+            results = await run_in_threadpool(fetch_lyrics_batch_melon, flat, True)
+        got = {id(d): (lyrics or "") for d, lyrics in results}
+
+        # 4) 결과 반영
+        for s, ps in to_crawl:
+            s["lyrics"] = "\n\n".join(got[id(p)] for p in ps).replace("\r\n", "\n")
 
     store.save(plan_id, plan)
     return RedirectResponse(url=f"/step/3?plan_id={plan_id}", status_code=303)
@@ -108,9 +149,6 @@ async def save_songs_basic(request: Request, plan_id: str):
 
 @router.post("/api/plan/{plan_id}/songs/lyrics")
 async def save_lyrics(request: Request, plan_id: str):
-    """
-    Step3 제출: textarea 수정 내용 저장만
-    """
     store = _store(request)
     plan = store.get(plan_id)
     if not plan:
@@ -121,6 +159,7 @@ async def save_lyrics(request: Request, plan_id: str):
     # praise
     for idx, s in enumerate(plan["songs"]["praise"]):
         s["lyrics"] = str(form.get(f"lyrics_praise_{idx}", "")).replace("\r\n", "\n")
+        s["form"] = str(form.get(f"form_praise_{idx}", s.get("form", ""))).strip()
 
     # offering
     if plan["songs"].get("offering"):

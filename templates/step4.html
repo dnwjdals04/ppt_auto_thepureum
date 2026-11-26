@@ -155,7 +155,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `thepureum_${yyyymmdd()}.pptx`;
+        a.download = `thepureum_${"{{ date_str }}" || yyyymmdd()}.pptx`;
         a.click();
         URL.revokeObjectURL(url);
 

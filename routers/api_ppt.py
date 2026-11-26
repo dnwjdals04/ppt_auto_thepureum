@@ -35,7 +35,7 @@ def generate_ppt(request: Request, plan_id: str):
 
     out_fp = build_ppt(plan, TEMPLATE, BIBLE_DIR, OUT_DIR)
 
-    date_str = datetime.now().strftime("%Y%m%d")
+    date_str = plan.get("date", "").replace("-", "") or datetime.now().strftime("%Y%m%d")
     download_name = f"thepureum_{date_str}.pptx"
 
     return FileResponse(
