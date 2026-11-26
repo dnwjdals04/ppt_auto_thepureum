@@ -2,9 +2,15 @@
 import datetime
 import re
 
-DATE_RE = re.compile(r"^\s*(\d{1,2})\s*/\s*(\d{1,2})\b")
-SONG_RE = re.compile(r"^\s*\d+\s*[.)]\s*(.+?)\s*$")
-FORM_RE = re.compile(r"^[\sA-Za-z0-9()'’‘`\-]+$")  # 송폼 줄: 영문/숫자/괄호/하이픈만
+# 날짜 줄: '11/1', '5/24', '📌 7.5 콘티' (앞의 이모지 허용, '3. 10000 reasons' 같은 곡 번호는 제외)
+DATE_RE = re.compile(r"^\W*(\d{1,2})[/.](\d{1,2})(?!\d)")
+SONG_RE = re.compile(r"^\s*\d+\s*[.)]\s*(.+?)\s*$")             # '1. 곡명'
+HEADER_RE = re.compile(r"^\s*[^\w\s(\[=*\-'\"]+\s*(\S.*?)\s*$")  # '❤️ 곡명(Bb)' 처럼 이모지로 시작
+DASH_FORM_RE = re.compile(r"^[\sA-Za-z0-9()'’‘`\-]+$")           # 'Intro(8)-A1-(4)-B'
+PART_RE = re.compile(r"^\s*(세션|싱어)\s*:\s*")                     # '세션: ...' / '싱어: ...'
+# 송폼 단어: Intro/Inter/Outro 등 + 파트 이름(A, A1, B', C2 ...)
+TOKEN_RE = re.compile(r"(?i)(intro|into|inter|interlude|outro|ending|[a-z]\d*'?)")
+KEY_RE = re.compile(r"\s*\(\s*[A-G][#b♭♯]?m?\s*(?:[/→\-~,].*)?\)\s*$")  # 제목 끝 키 표시 '(Bb)' '(G / OG: A)'
 TAG_RE = re.compile(r"^\s*\[(.+?)\]\s*$")           # 가사 파일의 [A1] 같은 파트 표시
 
 
@@ -20,46 +26,87 @@ def resolve_date(month: int, day: int, today: datetime.date) -> datetime.date:
     return d
 
 
+def _clean_title(t: str) -> str:
+    return KEY_RE.sub("", t).strip()
+
+
+def form_tokens(line: str) -> list[str] | None:
+    """
+    송폼 줄이면 토큰 목록, 아니면 None
+    - 'Intro(8)-A1-(4)-B'                 → ['Intro(8)', 'A1', '(4)', 'B']
+    - 'Intro [A1 B](승현)' / 'Inter(키업) A4 B' → ['Intro', 'A1', 'B'] / ['Inter', 'A4', 'B']  (괄호 메모·[ ]·* 무시)
+    """
+    line = PART_RE.sub("", line).strip()
+    if "-" in line and DASH_FORM_RE.match(line):
+        toks = [t.strip() for t in line.split("-") if t.strip()]
+        return toks or None
+    line = re.sub(r"\([^)]*\)", " ", line)
+    toks = line.replace("[", " ").replace("]", " ").replace("*", " ").split()
+    if toks and all(TOKEN_RE.fullmatch(_norm_quote(t)) for t in toks):
+        return toks
+    return None
+
+
 def parse_conti(text: str, today: datetime.date | None = None) -> list[dict]:
     """
     콘티 전체 텍스트 → [{"date": date, "songs": [{"title": str, "form": str}]}]
-    - 곡: '1. 곡명' 줄, 또는 번호 없이 송폼 줄 바로 위의 줄
-    - 곡 번호는 믿지 않음 (콘티에 1,2,1 처럼 잘못 적히는 경우가 있음)
-    - 싱어/세션 등 그 외 줄은 무시
+    - 곡: '1. 곡명' / '❤️ 곡명(키)' / 번호 없이 송폼 줄 바로 위의 줄
+    - 송폼: 'Intro-A-B' 한 줄 또는 여러 줄 ('Intro A' / 'Inter B B' ...) → 'Intro-A-Inter-B-B' 로 합침
+    - '세션:' / '싱어:' 가 둘 다 있으면 싱어 송폼 사용 (가사는 싱어 기준)
+    - 날짜 줄이 없으면 today 날짜의 콘티로 봄
+    - 곡 번호는 믿지 않음 (콘티에 1,2,1 처럼 잘못 적히는 경우가 있음), 그 외 줄은 무시
     """
     today = today or datetime.date.today()
     weeks: list[dict] = []
-    prev = None  # 직전 줄 (번호 없는 곡 제목 후보)
+    cur = None   # 송폼 줄을 받을 곡
+    prev = None  # 바로 윗줄 (번호 없는 곡 제목 후보)
+
+    def new_song(title: str) -> dict:
+        if not weeks:
+            weeks.append({"date": today, "songs": []})
+        song = {"title": _clean_title(title), "form": "", "_forms": {}, "_part": ""}
+        weeks[-1]["songs"].append(song)
+        return song
+
     for line in text.splitlines():
         if not line.strip():
+            prev = None
             continue
         m = DATE_RE.match(line)
         if m:
             weeks.append({"date": resolve_date(int(m.group(1)), int(m.group(2)), today), "songs": []})
-            prev = None
+            cur = prev = None
             continue
-        if not weeks:
-            continue  # "11월 찬양" 같은 머리말
-        songs = weeks[-1]["songs"]
-        m = SONG_RE.match(line)
-        if m:
-            songs.append({"title": m.group(1), "form": ""})
-            prev = None
-            continue
-        if "-" in line and FORM_RE.match(line):
+        toks = form_tokens(line)
+        if toks:
             if prev is not None:
-                songs.append({"title": prev, "form": line.strip()})
-            elif songs and not songs[-1]["form"]:
-                songs[-1]["form"] = line.strip()
+                cur = new_song(prev)
+            if cur is not None:
+                p = PART_RE.match(line)
+                if p:
+                    cur["_part"] = p.group(1)
+                cur["_forms"].setdefault(cur["_part"], []).extend(toks)
             prev = None
             continue
-        prev = line.strip()
-    return weeks
+        m = SONG_RE.match(line) or HEADER_RE.match(line)
+        if m and not line.lstrip().startswith("="):
+            cur, prev = new_song(m.group(1)), None
+            continue
+        cur, prev = None, line.strip()
+
+    for w in weeks:
+        for s in w["songs"]:
+            forms = s.pop("_forms")
+            s.pop("_part")
+            s["form"] = "-".join(forms.get("싱어") or forms.get("") or forms.get("세션") or [])
+    return [w for w in weeks if w["songs"]] or weeks
 
 
 def parse_form(form: str) -> list[tuple[str, str]]:
     """
-    'Intro(8)-A1-(4)-B' → [("intro",""), ("section","A1"), ("blank",""), ("section","B")]
+    'Intro(8)-A1-(4)-B-Inter-C-Outro'
+      → [("intro",""), ("section","A1"), ("blank",""), ("section","B"), ("blank",""), ("section","C"), ("blank","")]
+    Intro = 제목 슬라이드 그대로 / (n)·Inter·Outro = 빈 슬라이드
     """
     out = []
     for tok in form.split("-"):
@@ -68,7 +115,7 @@ def parse_form(form: str) -> list[tuple[str, str]]:
             continue
         if re.fullmatch(r"(?i)(intro|into)\s*(\(\d+\))?", tok):  # 'Into' 오타도 허용
             out.append(("intro", ""))
-        elif re.fullmatch(r"\(\d+\)", tok):
+        elif re.fullmatch(r"(?i)(\(\d+\)|(inter|interlude|outro|ending)\s*(\(\d+\))?)", tok):
             out.append(("blank", ""))
         else:
             out.append(("section", tok))
@@ -209,6 +256,49 @@ Intro(4)-A-A-B-(2)-A-A-B-B-C-C-C
     w = parse_conti(plain, datetime.date(2026, 11, 26))
     assert [(s["title"], s["form"][:8]) for s in w[0]["songs"]] == [("주의 이름 높이며", "Into(8)-"), ("나의 왕 나의 주", "Intro(8)")], w
     assert parse_form("Into(8)-A")[0] == ("intro", "")
+
+    # ❤️ 형식: 여러 줄 송폼, 괄호 메모, 키 표시, '📌 7.5' 날짜
+    heart = """📌 7.5 콘티 - 악보포함
+
+= 확인 후 체크 표시✅ 부탁드립니다 =
+
+❤️ Jehovah(Bb)
+    Intro [A1 B](승현)
+    Inter A2 B
+    Inter [C C](승현)
+    D D D B B
+    Outro
+
+❤️ 지금은 엘리야 때처럼(Bb)
+    C(승현) C(다같이)
+    Inter A1 B1 C
+"""
+    w = parse_conti(heart, datetime.date(2026, 7, 1))
+    assert w[0]["date"] == datetime.date(2026, 7, 5), w
+    assert [s["title"] for s in w[0]["songs"]] == ["Jehovah", "지금은 엘리야 때처럼"], w
+    assert w[0]["songs"][0]["form"] == "Intro-A1-B-Inter-A2-B-Inter-C-C-D-D-D-B-B-Outro", w
+    assert w[0]["songs"][1]["form"] == "C-C-Inter-A1-B1-C", w
+
+    # 세션/싱어 → 싱어 송폼, 날짜 줄 없음 → today 날짜
+    parts = """❤️ 크신 내 주님(G / OG: A)
+세션: Intro A1 A2 B
+    Inter C C
+    *Outro
+싱어: Intro A1(승현) A2(다같이) B(다같이 /화: 여자싱어)
+    *Inter B B C C
+
+❤️ 주의 나라(G→A)
+세션: (멘트) A
+싱어: (멘트) A(승현)
+    Inter A(다같이) B A
+"""
+    w = parse_conti(parts, datetime.date(2026, 7, 5))
+    assert w[0]["date"] == datetime.date(2026, 7, 5)
+    assert [(s["title"], s["form"]) for s in w[0]["songs"]] == [
+        ("크신 내 주님", "Intro-A1-A2-B-Inter-B-B-C-C"), ("주의 나라", "A-Inter-A-B-A")], w
+    assert parse_form("A-Inter-B-Outro") == [("section", "A"), ("blank", ""), ("section", "B"), ("blank", "")]
+    assert form_tokens("Thank You LORD") is None and form_tokens("싱어 하경 은빈") is None
+    assert _clean_title("Way Maker(Acoustic)") == "Way Maker(Acoustic)"
 
     assert parse_form("Intro(8)-A1-(4)-B’") == [("intro", ""), ("section", "A1"), ("blank", ""), ("section", "B'")]
 

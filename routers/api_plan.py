@@ -69,18 +69,19 @@ async def plan_init(
         raise HTTPException(status_code=400, detail="예배 날짜 형식이 올바르지 않습니다") from None
 
     # 콘티가 있으면 선택한 날짜(월/일)의 곡 + 송폼을 사용
-    conti_songs = []
+    # (콘티에 한 주만 있으면 날짜가 달라도 그 주 사용, 못 찾으면 에러 대신 2단계에서 직접 입력)
+    conti_songs, notice = [], ""
     if conti_raw.strip():
-        weeks = conti.parse_conti(conti_raw, today=date)
+        weeks = [w for w in conti.parse_conti(conti_raw, today=date) if w["songs"]]
         week = next((w for w in weeks if (w["date"].month, w["date"].day) == (date.month, date.day)), None)
-        if not week or not week["songs"]:
-            found = ", ".join(f"{w['date'].month}/{w['date'].day}" for w in weeks if w["songs"]) or "없음"
-            raise HTTPException(
-                status_code=400,
-                detail=f"콘티에서 {date.month}/{date.day} 곡을 찾지 못했어요 (콘티에 있는 날짜: {found})",
-            )
-        conti_songs = week["songs"][:20]
-        praise_count = len(conti_songs)
+        if week is None and len(weeks) == 1:
+            week = weeks[0]
+        if week:
+            conti_songs = week["songs"][:20]
+            praise_count = len(conti_songs)
+        else:
+            found = ", ".join(f"{w['date'].month}/{w['date'].day}" for w in weeks) or "없음"
+            notice = f"콘티에서 {date.month}/{date.day} 곡을 찾지 못했어요 (콘티에 있는 날짜: {found}). 곡을 직접 입력해 주세요."
 
     sermon_phrases = [x.strip() for x in sermon_phrases_raw.splitlines() if x.strip()]
 
@@ -88,6 +89,7 @@ async def plan_init(
         "praise_count": int(praise_count),
         "date": date.isoformat(),
         "conti_songs": conti_songs,
+        "notice": notice,
         "prayer": prayer.strip(),
         "sermon_title": sermon_title.strip(),
         "sermon_phrases": sermon_phrases,

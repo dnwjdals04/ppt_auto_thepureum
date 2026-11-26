@@ -43,7 +43,12 @@ def step2(request: Request, plan_id: str):
     return templates.TemplateResponse(
         request=request,
         name="step2.html",
-        context={"plan_id": plan_id, "praise_count": praise_count, "conti_songs": conti_songs},
+        context={
+            "plan_id": plan_id,
+            "praise_count": praise_count,
+            "conti_songs": conti_songs,
+            "error": plan.get("notice", ""),
+        },
     )
 
 
