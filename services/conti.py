@@ -23,17 +23,20 @@ def resolve_date(month: int, day: int, today: datetime.date) -> datetime.date:
 def parse_conti(text: str, today: datetime.date | None = None) -> list[dict]:
     """
     콘티 전체 텍스트 → [{"date": date, "songs": [{"title": str, "form": str}]}]
+    - 곡: '1. 곡명' 줄, 또는 번호 없이 송폼 줄 바로 위의 줄
     - 곡 번호는 믿지 않음 (콘티에 1,2,1 처럼 잘못 적히는 경우가 있음)
-    - 싱어/세션 등 한글 줄은 무시
+    - 싱어/세션 등 그 외 줄은 무시
     """
     today = today or datetime.date.today()
     weeks: list[dict] = []
+    prev = None  # 직전 줄 (번호 없는 곡 제목 후보)
     for line in text.splitlines():
         if not line.strip():
             continue
         m = DATE_RE.match(line)
         if m:
             weeks.append({"date": resolve_date(int(m.group(1)), int(m.group(2)), today), "songs": []})
+            prev = None
             continue
         if not weeks:
             continue  # "11월 찬양" 같은 머리말
@@ -41,9 +44,16 @@ def parse_conti(text: str, today: datetime.date | None = None) -> list[dict]:
         m = SONG_RE.match(line)
         if m:
             songs.append({"title": m.group(1), "form": ""})
+            prev = None
             continue
-        if songs and not songs[-1]["form"] and "-" in line and FORM_RE.match(line):
-            songs[-1]["form"] = line.strip()
+        if "-" in line and FORM_RE.match(line):
+            if prev is not None:
+                songs.append({"title": prev, "form": line.strip()})
+            elif songs and not songs[-1]["form"]:
+                songs[-1]["form"] = line.strip()
+            prev = None
+            continue
+        prev = line.strip()
     return weeks
 
 
@@ -56,7 +66,7 @@ def parse_form(form: str) -> list[tuple[str, str]]:
         tok = _norm_quote(tok)
         if not tok:
             continue
-        if re.fullmatch(r"(?i)intro\s*(\(\d+\))?", tok):
+        if re.fullmatch(r"(?i)(intro|into)\s*(\(\d+\))?", tok):  # 'Into' 오타도 허용
             out.append(("intro", ""))
         elif re.fullmatch(r"\(\d+\)", tok):
             out.append(("blank", ""))
@@ -210,6 +220,12 @@ Intro(4)-A-A-B-(2)-A-A-B-B-C-C-C
     assert weeks[1]["songs"][1]["title"] == "우리 살아가는 모든 날들이+밤이나 낮이나"
     assert weeks[1]["songs"][1]["form"].startswith("Intro(4)")
     assert resolve_date(1, 4, datetime.date(2026, 12, 20)) == datetime.date(2027, 1, 4)
+
+    # 번호 없는 콘티 + 'Into' 오타
+    plain = "11/29\n주의 이름 높이며\nInto(8)-A1-(4)-A-B-(4)-A-B-B-(4)-B'-B\n\n나의 왕 나의 주\nIntro(8)-A-B-C\n싱어 하경 은빈\n메인 지희\n"
+    w = parse_conti(plain, datetime.date(2026, 11, 26))
+    assert [(s["title"], s["form"][:8]) for s in w[0]["songs"]] == [("주의 이름 높이며", "Into(8)-"), ("나의 왕 나의 주", "Intro(8)")], w
+    assert parse_form("Into(8)-A")[0] == ("intro", "")
 
     assert parse_form("Intro(8)-A1-(4)-B’") == [("intro", ""), ("section", "A1"), ("blank", ""), ("section", "B'")]
 

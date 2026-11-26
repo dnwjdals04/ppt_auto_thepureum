@@ -24,7 +24,7 @@ def _store(request: Request):
 @router.post("/api/plan/init")
 async def plan_init(
     request: Request,
-    praise_count: int = Form(...),
+    praise_count: int = Form(3),  # 콘티가 없을 때의 곡 수 (입력칸은 없앰)
     prayer: str = Form("기도 | "),
     sermon_title: str = Form(""),
     sermon_phrases_raw: str = Form(""),
